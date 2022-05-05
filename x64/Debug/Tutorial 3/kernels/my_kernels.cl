@@ -1,53 +1,7 @@
-//fixed 4 step reduce
-kernel void reduce_add_1(global const int* A, global int* B) {
-	int id = get_global_id(0);
-	int N = get_global_size(0);
-
-	B[id] = A[id]; //copy input to output
-
-	barrier(CLK_GLOBAL_MEM_FENCE); //wait for all threads to finish copying
-
-	//perform reduce on the output array
-	//modulo operator is used to skip a set of values (e.g. 2 in the next line)
-	//we also check if the added element is within bounds (i.e. < N)
-	if (((id % 2) == 0) && ((id + 1) < N)) 
-		B[id] += B[id + 1];
-
-	barrier(CLK_GLOBAL_MEM_FENCE);
-
-	if (((id % 4) == 0) && ((id + 2) < N)) 
-		B[id] += B[id + 2];
-
-	barrier(CLK_GLOBAL_MEM_FENCE);
-
-	if (((id % 8) == 0) && ((id + 4) < N)) 
-		B[id] += B[id + 4];
-
-	barrier(CLK_GLOBAL_MEM_FENCE);
-
-	if (((id % 16) == 0) && ((id + 8) < N)) 
-		B[id] += B[id + 8];
-}
-
-//flexible step reduce 
-kernel void reduce_add_2(global const int* A, global int* B) {
-	int id = get_global_id(0);
-	int N = get_global_size(0);
-
-	B[id] = A[id];
-
-	barrier(CLK_GLOBAL_MEM_FENCE);
-
-	for (int i = 1; i < N; i *= 2) { //i is a stride
-		if (!(id % (i * 2)) && ((id + i) < N)) 
-			B[id] += B[id + i];
-
-		barrier(CLK_GLOBAL_MEM_FENCE);
-	}
-}
-
-//reduce using local memory (so called privatisation)
-kernel void reduce_add_3(global const int* A, global int* B, local int* scratch) {
+// flexible step reduce using local memory instead of global,
+// reduce using local memory (Think about shared memory?)
+// 
+kernel void reduceAdd(global const int* A, global int* B, local int* scratch) {
 	int id = get_global_id(0);
 	int lid = get_local_id(0);
 	int N = get_local_size(0);
@@ -64,8 +18,12 @@ kernel void reduce_add_3(global const int* A, global int* B, local int* scratch)
 		barrier(CLK_LOCAL_MEM_FENCE);
 	}
 
+	//we add results from all local groups to the first element of the array
+	//serial operation! but works for any group size
 	//copy the cache to output array
-	B[id] = scratch[lid];
+	if (!lid) {
+		atomic_add(&B[0],scratch[lid]);
+	}
 }
 
 //kernel void nr_bins() {
