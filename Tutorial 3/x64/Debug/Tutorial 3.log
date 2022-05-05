@@ -1,5 +1,5 @@
 ﻿  Tutorial 3.cpp
   cl_version.h: CL_TARGET_OPENCL_VERSION is not defined. Defaulting to 220 (OpenCL 2.2)
-  Tutorial 3.vcxproj -> C:\Users\Computing\Documents\GitHub\ParallelProgrammingAssignment\x64\Debug\Tutorial 3\Tutorial 3.exe
+  Tutorial 3.vcxproj -> C:\Users\User\Documents\GitHub\ParallelProgrammingAssignment\x64\Debug\Tutorial 3\Tutorial 3.exe
   kernels\my_kernels.cl
   1 File(s) copied
