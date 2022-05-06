@@ -117,13 +117,13 @@ int main(int argc, char **argv) {
 		queue.enqueueFillBuffer(buffer_B, 0, 0, output_size);//zero B buffer on device memory
 
 		//4.2 Setup and execute all kernels (i.e. device code)
-		//cl::Kernel kernel_1 = cl::Kernel(program, "reduceAdd");
+		cl::Kernel kernel_1 = cl::Kernel(program, "reduceAdd");
 		// Set input
-		//kernel_1.setArg(0, buffer_A);
+		kernel_1.setArg(0, buffer_A);
 		// Set output
-		//kernel_1.setArg(1, buffer_B);
+		kernel_1.setArg(1, buffer_B);
 		// Set local memory size
-		//kernel_1.setArg(2, cl::Local(local_size*sizeof(mytype)));
+		kernel_1.setArg(2, cl::Local(local_size*sizeof(mytype)));
 
 
 		cl::Kernel kernel_2 = cl::Kernel(program, "hist_simple");
@@ -133,14 +133,30 @@ int main(int argc, char **argv) {
 		// Set local memory size
 		kernel_2.setArg(2, cl::Local(local_size*sizeof(mytype)));
 
+		
+
+		// image code
+		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_input.size());
+		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_input.size()); //should be the same as input image
+		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0]);
+		cl::Kernel kernel_filter_r = cl::Kernel(program, "filter_r");
+		kernel_filter_r.setArg(0, dev_image_input);
+		kernel_filter_r.setArg(1, dev_image_output);
+		// Set local memory size
+		//kernel_filter_r.setArg(2, cl::Local(local_size*sizeof(mytype)));
+		
 		//call all kernels in a sequence
 		//queue.enqueueNDRangeKernel(kernel_1, cl::NullRange, cl::NDRange(input_elements), cl::NDRange(local_size), NULL, &A_event);
 		queue.enqueueNDRangeKernel(kernel_2, cl::NullRange, cl::NDRange(input_elements), cl::NDRange(local_size), NULL, &A_event);
-
+		queue.enqueueNDRangeKernel(kernel_filter_r, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange, NULL, &A_event);
 
 		//4.3 Copy the result from device to host
 		queue.enqueueReadBuffer(buffer_B, CL_TRUE, 0, output_size, &B[0]);
 		queue.enqueueReadBuffer(buffer_D, CL_TRUE, 0, sizeC, &D[0]);
+
+		// create vector to store image
+		vector<unsigned char> output_image_buffer(image_input.size());
+		queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_image_buffer.size(), &output_image_buffer.data()[0]);
 
 
 		std::cout << "A = " << A << std::endl;
@@ -151,34 +167,9 @@ int main(int argc, char **argv) {
 		std::cout << "Preferred WG Size" << CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE << std::endl;
 		std::cout << "Actual WG Size" << availableComputeUnits << std::endl;
 
-		// stuff for images 
-		// 
-		//device - buffers
-		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_input.size());
-		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_input.size()); //should be the same as input image
-//		cl::Buffer dev_convolution_mask(context, CL_MEM_READ_ONLY, convolution_mask.size()*sizeof(float));
-
-		//4.1 Copy images to device memory
-		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0]);
-		//		queue.enqueueWriteBuffer(dev_convolution_mask, CL_TRUE, 0, convolution_mask.size()*sizeof(float), &convolution_mask[0]);
-		cl::Kernel kernel_filter_r = cl::Kernel(program, "filter_r");
-		kernel_filter_r.setArg(0, dev_image_input);
-		kernel_filter_r.setArg(1, dev_image_output);
-
-
-		//4.2 Setup and execute the kernel (i.e. device code)
-		/*cl::Kernel kernel = cl::Kernel(program, "identity");
-		kernel.setArg(0, dev_image_input);
-		kernel.setArg(1, dev_image_output);*/
-		//		kernel.setArg(2, dev_convolution_mask);
-
-		queue.enqueueNDRangeKernel(kernel_filter_r, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange);
-
-		vector<unsigned char> output_buffer(image_input.size());
-		//4.3 Copy the result from device to host
-		queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
-
-		CImg<unsigned char> output_image(output_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
+		
+		
+		CImg<unsigned char> output_image(output_image_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
 		CImgDisplay disp_output(output_image, "output");
 
 		while (!disp_input.is_closed() && !disp_output.is_closed()
@@ -186,8 +177,6 @@ int main(int argc, char **argv) {
 			disp_input.wait(1);
 			disp_output.wait(1);
 		}
-
-
 	}
 	catch (cl::Error err) {
 		std::cerr << "ERROR: " << err.what() << ", " << getErrorString(err.err()) << std::endl;
