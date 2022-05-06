@@ -26,6 +26,10 @@ int main(int argc, char **argv) {
 
 	//detect any potential exceptions
 	try {
+		//Part 1 - Load Image
+		CImg<unsigned char> image_input(image_filename.c_str());
+		CImgDisplay disp_input(image_input, "input");
+		
 		//Part 2 - host operations
 		//2.1 Select computing devices
 		cl::Context context = GetContext(platform_id, device_id);
@@ -142,10 +146,147 @@ int main(int argc, char **argv) {
 
 		std::cout << "Preferred WG Size" << CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE << std::endl;
 		std::cout << "Actual WG Size" << availableComputeUnits << std::endl;
+
+		// stuff for images 
+		// 
+		//device - buffers
+		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_input.size());
+		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_input.size()); //should be the same as input image
+//		cl::Buffer dev_convolution_mask(context, CL_MEM_READ_ONLY, convolution_mask.size()*sizeof(float));
+
+		//4.1 Copy images to device memory
+		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0]);
+		//		queue.enqueueWriteBuffer(dev_convolution_mask, CL_TRUE, 0, convolution_mask.size()*sizeof(float), &convolution_mask[0]);
+		cl::Kernel kernel_filter_r = cl::Kernel(program, "filter_r");
+		kernel_filter_r.setArg(0, dev_image_input);
+		kernel_filter_r.setArg(1, dev_image_output);
+
+
+		//4.2 Setup and execute the kernel (i.e. device code)
+		/*cl::Kernel kernel = cl::Kernel(program, "identity");
+		kernel.setArg(0, dev_image_input);
+		kernel.setArg(1, dev_image_output);*/
+		//		kernel.setArg(2, dev_convolution_mask);
+
+		queue.enqueueNDRangeKernel(kernel_filter_r, cl::NullRange, cl::NDRange(image_input.size()), cl::NullRange);
+
+		vector<unsigned char> output_buffer(image_input.size());
+		//4.3 Copy the result from device to host
+		queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_buffer.size(), &output_buffer.data()[0]);
+
+		CImg<unsigned char> output_image(output_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
+		CImgDisplay disp_output(output_image, "output");
+
+		while (!disp_input.is_closed() && !disp_output.is_closed()
+			&& !disp_input.is_keyESC() && !disp_output.is_keyESC()) {
+			disp_input.wait(1);
+			disp_output.wait(1);
+		}
+
+
 	}
 	catch (cl::Error err) {
 		std::cerr << "ERROR: " << err.what() << ", " << getErrorString(err.err()) << std::endl;
 	}
+	catch (const cl::Error& err) {
+		std::cerr << "ERROR: " << err.what() << ", " << getErrorString(err.err()) << std::endl;
+	}
+	catch (CImgException& err) {
+		std::cerr << "ERROR: " << err.what() << std::endl;
+	}
+
 
 	return 0;
+}
+
+
+kernel void identity(global const uchar* A, global uchar* B) {
+	int id = get_global_id(0);
+	B[id] = A[id];
+}
+
+kernel void filter_r(global const uchar* A, global uchar* B) {
+	int id = get_global_id(0);
+	int image_size = get_global_size(0) / 3; //each image consists of 3 colour channels
+	int colour_channel = id / image_size; // 0 - red, 1 - green, 2 - blue
+
+	//this is just a copy operation, modify to filter out the individual colour channels
+	if (colour_channel == 0) {
+		B[id] = A[id];
+	}
+
+}
+
+//simple ND identity kernel
+kernel void identityND(global const uchar* A, global uchar* B) {
+	int width = get_global_size(0); //image width in pixels
+	int height = get_global_size(1); //image height in pixels
+	int image_size = width * height; //image size in pixels
+	int channels = get_global_size(2); //number of colour channels: 3 for RGB
+
+	int x = get_global_id(0); //current x coord.
+	int y = get_global_id(1); //current y coord.
+	int c = get_global_id(2); //current colour channel
+
+	int id = x + y * width + c * image_size; //global id in 1D space
+
+	B[id] = A[id];
+}
+
+//2D averaging filter
+kernel void avg_filterND(global const uchar* A, global uchar* B) {
+	int width = get_global_size(0); //image width in pixels
+	int height = get_global_size(1); //image height in pixels
+	int image_size = width * height; //image size in pixels
+	int channels = get_global_size(2); //number of colour channels: 3 for RGB
+
+	int x = get_global_id(0); //current x coord.
+	int y = get_global_id(1); //current y coord.
+	int c = get_global_id(2); //current colour channel
+
+	int id = x + y * width + c * image_size; //global id in 1D space
+
+	uint result = 0;
+
+	//simple boundary handling - just copy the original pixel
+	if ((x == 0) || (x == width - 1) || (y == 0) || (y == height - 1)) {
+		result = A[id];
+	}
+	else {
+		for (int i = (x - 1); i <= (x + 1); i++)
+			for (int j = (y - 1); j <= (y + 1); j++)
+				result += A[i + j * width + c * image_size];
+
+		result /= 9;
+	}
+
+	B[id] = (uchar)result;
+}
+
+//2D 3x3 convolution kernel
+kernel void convolutionND(global const uchar* A, global uchar* B, constant float* mask) {
+	int width = get_global_size(0); //image width in pixels
+	int height = get_global_size(1); //image height in pixels
+	int image_size = width * height; //image size in pixels
+	int channels = get_global_size(2); //number of colour channels: 3 for RGB
+
+	int x = get_global_id(0); //current x coord.
+	int y = get_global_id(1); //current y coord.
+	int c = get_global_id(2); //current colour channel
+
+	int id = x + y * width + c * image_size; //global id in 1D space
+
+	float result = 0;
+
+	//simple boundary handling - just copy the original pixel
+	if ((x == 0) || (x == width - 1) || (y == 0) || (y == height - 1)) {
+		result = A[id];
+	}
+	else {
+		for (int i = (x - 1); i <= (x + 1); i++)
+			for (int j = (y - 1); j <= (y + 1); j++)
+				result += A[i + j * width + c * image_size] * mask[i - (x - 1) + j - (y - 1)];
+	}
+
+	B[id] = (uchar)result;
 }
