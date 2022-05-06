@@ -27,10 +27,10 @@ kernel void reduceAdd(global const int* A, global int* B, local int* scratch) {
 }
 
 kernel void nr_bins() {
-	int lid, glid, groupID, 
+//	int lid, glid, groupID, 
 }
 
-kernel void histogram256(global const uchar* )
+//kernel void histogram256(global const uchar* )
 
 //a very simple histogram implementation
 kernel void hist_simple(global const int* A, global int* H) { 
