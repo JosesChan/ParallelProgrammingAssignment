@@ -30,14 +30,21 @@ kernel void nr_bins() {
 //	int lid, glid, groupID, 
 }
 
-//kernel void histogram256(global const uchar* )
 
 //a very simple histogram implementation
-kernel void hist_simple(global const int* A, global int* H) { 
+kernel void hist_simple(global const int* A, global int* H, local int* scratch) {
 	int id = get_global_id(0);
+	int lid = get_local_id(0);
+
+	//cache all N values from global memory to local memory
+	scratch[lid] = A[id];
+
+	barrier(CLK_LOCAL_MEM_FENCE);//wait for all local threads to finish copying from global to local memory
 
 	//assumes that H has been initialised to 0
-	int bin_index = A[id];//take value as a bin index
+	int bin_index = A[lid];//take value as a bin index
+
+	barrier(CLK_LOCAL_MEM_FENCE);
 
 	atomic_inc(&H[bin_index]);//serial operation, not very efficient!
 }

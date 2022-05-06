@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
 
 		//Part 3 - memory allocation
 		//host - input
-		std::vector<mytype> A{1,2,3,4,5,5,6,7,8,9};//allocate 10 elements with an initial value 1 - their sum is 10 so it should be easy to check the results!
+		std::vector<mytype> A{1,2,3,4,5,5,6,7,8,13};//allocate 10 elements with an initial value 1 - their sum is 10 so it should be easy to check the results!
 		
 		// Set the amount of work groups to match the amount of available compute units to maximise the amount of code being executed by a unit
 		// Using the max compute units and half of the compute units throws an error therefore using a quarter of available units will be done
@@ -122,6 +122,8 @@ int main(int argc, char **argv) {
 		// Set input
 		kernel_2.setArg(0, buffer_A);
 		kernel_2.setArg(1, buffer_D);
+		// Set local memory size
+		kernel_2.setArg(2, cl::Local(local_size*sizeof(mytype)));
 
 		//call all kernels in a sequence
 		//queue.enqueueNDRangeKernel(kernel_1, cl::NullRange, cl::NDRange(input_elements), cl::NDRange(local_size), NULL, &A_event);
