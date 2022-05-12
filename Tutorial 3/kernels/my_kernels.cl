@@ -62,6 +62,27 @@ kernel void histSimpleImplement(global const uchar* A, global int* H) {
 //	atomic_inc(&H[bin_index]);//serial operation, not very efficient!
 //}
 
+kernel void histLocalSimple(global const uchar* A, global int* H, local int* LH, int nr_bins) {
+	size_t globalID = get_global_id(0);
+	size_t localID = get_local_id(0);
+	int bin_index = A[globalID];
+	//assumes that H has been initialised to 0
+	//int bin_index = A[globalID];//take value as a bin index
+
+	// set bin to 0
+	if (localID < nr_bins) {
+		LH[localID] = 0;
+	}
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+	atomic_inc(&LH[bin_index]);
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+	// sync then combine privatised histograms
+	barrier(CLK_LOCAL_MEM_FENCE);
+	atomic_add(&H[localID], LH[localID]);
+}
+
 
 // kernel to look at colour histograms
 # define BIN_SIZE 256

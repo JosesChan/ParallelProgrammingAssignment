@@ -132,13 +132,14 @@ int main(int argc, char **argv) {
 
 		//colour_histogram_kernel(global const uint * data, global uint * binResultR, global uint * binResultG, global uint * binResultB, int elements_awaiting_process, int total_pixels)
 		
-		cl::Kernel kernel_1 = cl::Kernel(program, "histSimpleImplement");
+		cl::Kernel kernel_1 = cl::Kernel(program, "histLocalSimple");
 		// Set input
 		kernel_1.setArg(0, dev_image_input);
 		// Set output
 		kernel_1.setArg(1, bufferIntensityHistogram);
-		//kernel_1.setArg(2, cl::Local(local_size));
-
+		kernel_1.setArg(2, cl::Local(local_size));
+		kernel_1.setArg(3, int(nr_groups));
+		
 		// unimplemented code below
 		//cl::Kernel kernel_1 = cl::Kernel(program, "colour_histogram_kernel");
 		//// Set input
