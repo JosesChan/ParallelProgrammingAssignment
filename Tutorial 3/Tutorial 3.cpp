@@ -138,7 +138,7 @@ int main(int argc, char **argv) {
 		// Set output
 		kernel_1.setArg(1, bufferIntensityHistogram);
 		kernel_1.setArg(2, cl::Local(local_size));
-		kernel_1.setArg(3, int(nr_groups));
+		kernel_1.setArg(3, int(intensityHistogram.size()));
 		
 		// unimplemented code below
 		//cl::Kernel kernel_1 = cl::Kernel(program, "colour_histogram_kernel");
