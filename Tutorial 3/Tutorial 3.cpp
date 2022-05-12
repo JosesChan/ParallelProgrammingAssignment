@@ -68,15 +68,11 @@ int main(int argc, char **argv) {
 		typedef int mytype;
 
 		//Part 3 - memory allocation
-		//host - input
 		std::vector<mytype> intensityHistogram(256);
 		std::vector<mytype> cumulativeHistogram(256);
 		std::vector<mytype> lookUpTable(256);
 
-		// Set the amount of work groups to match the amount of available compute units to maximise the amount of code being executed by a unit
-		// Using the max compute units and half of the compute units throws an error therefore using a quarter of available units will be done
-		// Current compute max compute units is around 4000, therefore 1/4 will be 1000 which is roughly enough compute units for
-		// 4 channels of an image 255*4
+		
 		int availableComputeUnits = CL_DEVICE_MAX_COMPUTE_UNITS/4;
 		size_t local_size = availableComputeUnits;
 
@@ -95,17 +91,6 @@ int main(int argc, char **argv) {
 		size_t input_size = intensityHistogram.size()*sizeof(mytype);//size in bytes
 		size_t nr_groups = input_elements / local_size;
 		size_t elementsInput = image_input.size();
-
-		//host - output
-		//std::vector<mytype> B(1);
-		//size_t output_size = B.size()*sizeof(mytype);//size in bytes
-
-		//std::vector<mytype> C(10, 0);
-		//size_t sizeC = C.size() * sizeof(mytype);//size in bytes
-		
-		//std::vector<mytype> D(10, 0);
-		//size_t sizeD = D.size() * sizeof(mytype);//size in bytes
-
 
 		//device - buffers
 		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_input.size());
@@ -132,13 +117,13 @@ int main(int argc, char **argv) {
 
 		//colour_histogram_kernel(global const uint * data, global uint * binResultR, global uint * binResultG, global uint * binResultB, int elements_awaiting_process, int total_pixels)
 		
-		cl::Kernel kernel_1 = cl::Kernel(program, "histLocalSimple");
+		cl::Kernel kernel_1 = cl::Kernel(program, "histSimpleImplement");
 		// Set input
 		kernel_1.setArg(0, dev_image_input);
 		// Set output
 		kernel_1.setArg(1, bufferIntensityHistogram);
-		kernel_1.setArg(2, cl::Local(local_size));
-		kernel_1.setArg(3, int(intensityHistogram.size()));
+		//kernel_1.setArg(2, cl::Local(input_size));
+		//kernel_1.setArg(3, int(intensityHistogram.size()));
 		
 		// unimplemented code below
 		//cl::Kernel kernel_1 = cl::Kernel(program, "colour_histogram_kernel");
