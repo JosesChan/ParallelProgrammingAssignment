@@ -30,6 +30,29 @@ kernel void nr_bins() {
 //	int lid, glid, groupID, 
 }
 
+void histogram_kernel(global const uint* data, global uint* binResultR, global uint* binResultG, global uint* binResultB, int elements_to_process, int total_pixels) {
+	size_t localID = get_local_id(0);
+	size_t globalID = get_global_id(0);
+	size_t groupID = get_group_id(0);
+	size_t groupSize = get_local(0);
+
+	__local int sharedArrayR[localID] = 0;
+	__local int sharedArrayG[localID] = 0;
+	__local int sharedArrayB[localID] = 0;
+	__global uchar4* image_data = data;
+
+	__local uchar* sharedArrayR = sharedArray;
+	__local uchar* sharedArrayG = sharedArray + groupSize * BIN_SIZE;
+	__local uchar* sharedArrayB = sharedArray + 2 * groupSize * BIN_SIZE;
+
+	// let shared array be set to 0
+	for (int i = 0; i < BIN_SIZE; i++) {
+		sharedArrayR[localID * BIN_SIZE + i] = 0;
+		sharedArrayG[localID * BIN_SIZE + i] = 0;
+		sharedArrayB[localID * BIN_SIZE + i] = 0;
+	}
+}
+
 
 //a very simple histogram implementation
 kernel void hist_simple(global const int* A, global int* H, local int* scratch) {
@@ -47,6 +70,9 @@ kernel void hist_simple(global const int* A, global int* H, local int* scratch) 
 	barrier(CLK_LOCAL_MEM_FENCE);
 
 	atomic_inc(&H[bin_index]);//serial operation, not very efficient!
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+
 }
 
 //Hillis-Steele basic inclusive scan

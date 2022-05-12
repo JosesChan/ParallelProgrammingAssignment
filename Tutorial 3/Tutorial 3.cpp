@@ -106,6 +106,8 @@ int main(int argc, char **argv) {
 		cl::Buffer buffer_B(context, CL_MEM_READ_WRITE, output_size);
 		cl::Buffer buffer_C(context, CL_MEM_READ_ONLY, input_size);
 		cl::Buffer buffer_D(context, CL_MEM_READ_WRITE, sizeD);
+		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_input.size());
+		cl::Buffer dev_image_output_intensity_histogram(context, CL_MEM_READ_WRITE, image_input.size()); //should be the same as input image
 
 		//Part 4 - device operations
 		
@@ -128,20 +130,18 @@ int main(int argc, char **argv) {
 
 		cl::Kernel kernel_2 = cl::Kernel(program, "hist_simple");
 		// Set input
-		kernel_2.setArg(0, buffer_A);
-		kernel_2.setArg(1, buffer_D);
+		kernel_2.setArg(0, dev_image_input);
+		kernel_2.setArg(1, dev_image_output_intensity_histogram);
 		// Set local memory size
 		kernel_2.setArg(2, cl::Local(local_size*sizeof(mytype)));
 
 		
 
 		// image code
-		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_input.size());
-		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_input.size()); //should be the same as input image
 		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0]);
 		cl::Kernel kernel_filter_r = cl::Kernel(program, "filter_r");
 		kernel_filter_r.setArg(0, dev_image_input);
-		kernel_filter_r.setArg(1, dev_image_output);
+		kernel_filter_r.setArg(1, dev_image_output_intensity_histogram);
 		// Set local memory size
 		//kernel_filter_r.setArg(2, cl::Local(local_size*sizeof(mytype)));
 		
@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
 
 		// create vector to store image
 		vector<unsigned char> output_image_buffer(image_input.size());
-		queue.enqueueReadBuffer(dev_image_output, CL_TRUE, 0, output_image_buffer.size(), &output_image_buffer.data()[0]);
+		queue.enqueueReadBuffer(dev_image_output_intensity_histogram, CL_TRUE, 0, output_image_buffer.size(), &output_image_buffer.data()[0]);
 
 
 		std::cout << "A = " << A << std::endl;
