@@ -35,15 +35,20 @@ void histogram_kernel(global const uint* data, global uint* binResultR, global u
 	size_t globalID = get_global_id(0);
 	size_t groupID = get_group_id(0);
 	size_t groupSize = get_local(0);
-
 	__local int sharedArrayR[localID] = 0;
 	__local int sharedArrayG[localID] = 0;
 	__local int sharedArrayB[localID] = 0;
 	__global uchar4* image_data = data;
 
-	__local uchar* sharedArrayR = sharedArray;
-	__local uchar* sharedArrayG = sharedArray + groupSize * BIN_SIZE;
-	__local uchar* sharedArrayB = sharedArray + 2 * groupSize * BIN_SIZE;
+	sharedArrayR[localID] = 0;
+	sharedArrayG[localID] = 0;
+	sharedArrayB[localID] = 0;
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+	int groupOffset = groupID * groupSize * elements_to_process;
+
+	//
+	if
 
 	// let shared array be set to 0
 	for (int i = 0; i < BIN_SIZE; i++) {
