@@ -108,16 +108,12 @@ int main(int argc, char **argv) {
 
 
 		//device - buffers
-		//cl::Buffer buffer_A(context, CL_MEM_READ_ONLY, input_size);
-		//cl::Buffer buffer_B(context, CL_MEM_READ_WRITE, output_size);
-		//cl::Buffer buffer_C(context, CL_MEM_READ_ONLY, input_size);
-		//cl::Buffer buffer_D(context, CL_MEM_READ_WRITE, sizeD);
 		cl::Buffer dev_image_input(context, CL_MEM_READ_ONLY, image_input.size());
 		cl::Buffer dev_image_output(context, CL_MEM_READ_WRITE, image_input.size()); //should be the same as input image
 		cl::Buffer bufferIntensityHistogram(context, CL_MEM_READ_WRITE, input_size);
 		cl::Buffer bufferCumulativeHistogram(context, CL_MEM_READ_WRITE, input_size);
 		cl::Buffer bufferLookUpTable(context, CL_MEM_READ_WRITE, input_size);
-		// complex hist required buffers
+		// complex hist required buffers, unimplemented as of this moment
 		cl::Buffer intermediateHistR(context, CL_MEM_WRITE_ONLY, input_size);
 		cl::Buffer intermediateHistG(context, CL_MEM_WRITE_ONLY, input_size);
 		cl::Buffer intermediateHistB(context, CL_MEM_WRITE_ONLY, input_size);
@@ -127,8 +123,9 @@ int main(int argc, char **argv) {
 		
 		//4.1 copy array A to and initialise other arrays on device memory
 		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0]);
-		queue.enqueueFillBuffer(bufferIntensityHistogram, 0, 0, input_size);//zero buffer on device memory
-		queue.enqueueFillBuffer(bufferCumulativeHistogram, 0, 0, input_size);//zero buffer on device memory
+		// set zero values in output buffers
+		queue.enqueueFillBuffer(bufferIntensityHistogram, 0, 0, input_size);
+		queue.enqueueFillBuffer(bufferCumulativeHistogram, 0, 0, input_size);
 		queue.enqueueFillBuffer(bufferLookUpTable, 0, 0, input_size);
 
 		//4.2 Setup and execute all kernels (i.e. device code)
@@ -140,35 +137,39 @@ int main(int argc, char **argv) {
 		kernel_1.setArg(0, dev_image_input);
 		// Set output
 		kernel_1.setArg(1, bufferIntensityHistogram);
-		//kernel_1.setArg(1, cl::Local(local_size));
+		//kernel_1.setArg(2, cl::Local(local_size));
 
-		//cl::Kernel kernel_1 = cl::Kernel(program, "hist_simple");
+		// unimplemented code below
+		//cl::Kernel kernel_1 = cl::Kernel(program, "colour_histogram_kernel");
 		//// Set input
 		//kernel_1.setArg(0, dev_image_input);
-		//// Set output
-		//kernel_1.setArg(1, bufferIntensityHistogram);
-		//kernel_1.setArg(2, cl::Local(local_size));
+		//kernel_1.setArg(1, intermediateHistR);
+		//kernel_1.setArg(2, intermediateHistG));
 		//kernel_1.setArg(3, intermediateHistB);
-		//kernel_1.setArg(4, bufferIntensityHistogram);
-		//kernel_1.setArg(5, bufferIntensityHistogram);
-
-		//void colour_histogram_kernel(global const uint* data, global uint* binResultR, global uint* binResultG, global uint* binResultB, int elements_awaiting_process, int total_pixels) {
-
+		//kernel_1.setArg(4, cl::Local(local_size));
+		//kernel_1.setArg(5, cl::Local(local_size));
+		
 
 		cl::Kernel kernel_2 = cl::Kernel(program, "scan_add");
 		// Set input
 		kernel_2.setArg(0, bufferIntensityHistogram);
+		// Set output
 		kernel_2.setArg(1, bufferCumulativeHistogram);
+		// Allocate local memory
 		kernel_2.setArg(2, cl::Local(local_size));
 		kernel_2.setArg(3, cl::Local(local_size));
 		
 		cl::Kernel kernel_3 = cl::Kernel(program, "LUT");
+		// Set input
 		kernel_3.setArg(0, bufferCumulativeHistogram);
+		// Set output
 		kernel_3.setArg(1, bufferLookUpTable);
 
 		cl::Kernel kernel_4 = cl::Kernel(program, "backProjection");
+		// Set input
 		kernel_4.setArg(0, dev_image_input);
 		kernel_4.setArg(1, bufferLookUpTable);
+		// Set output
 		kernel_4.setArg(2, dev_image_output);
 
 		// create vector to store image

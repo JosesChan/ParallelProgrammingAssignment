@@ -18,12 +18,14 @@ kernel void reduceAdd(global const int* A, global int* B, local int* scratch) {
 		barrier(CLK_LOCAL_MEM_FENCE);
 	}
 
-	//we add results from all local groups to the first element of the array
-	//serial operation! but works for any group size
-	//copy the cache to output array
-	if (!lid) {
-		atomic_add(&B[0],scratch[lid]);
-	}
+	////we add results from all local groups to the first element of the array
+	////serial operation! but works for any group size
+	////copy the cache to output array
+	//if (!lid) {
+	//	atomic_add(&B[0],scratch[lid]);
+	//}
+
+	B[id] = scratch[lid];
 }
 
 kernel void histSimpleImplement(global const uchar* A, global int* H) {
@@ -237,18 +239,6 @@ kernel void scan_add_adjust(global int* A, global const int* B) {
 kernel void identity(global const uchar* A, global uchar* B) {
 	int id = get_global_id(0);
 	B[id] = A[id];
-}
-
-kernel void filter_r(global const uchar* A, global uchar* B) {
-	int id = get_global_id(0);
-	int image_size = get_global_size(0) / 3; //each image consists of 3 colour channels
-	int colour_channel = id / image_size; // 0 - red, 1 - green, 2 - blue
-
-	//this is just a copy operation, modify to filter out the individual colour channels
-	if (colour_channel == 0) {
-		B[id] = A[id];
-	}
-
 }
 
 //simple ND identity kernel
