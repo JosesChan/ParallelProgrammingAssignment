@@ -1,3 +1,6 @@
+/*
+*/
+
 #include <iostream>
 #include <vector>
 
@@ -77,15 +80,15 @@ int main(int argc, char **argv) {
 		int availableComputeUnits = CL_DEVICE_MAX_COMPUTE_UNITS/4;
 		size_t local_size = availableComputeUnits;
 
-		//size_t padding_size = intensityHistogram.size() % local_size;
+		/*size_t padding_size = intensityHistogram.size() % local_size;*/
 
 		//if the input vector is not a multiple of the local_size
 		//insert additional neutral elements (0 for addition) so that the total will not be affected
 		//if (padding_size) {
-			//create an extra vector with neutral values
+		//	// create an extra vector with neutral values
 		//	std::vector<int> A_ext(local_size-padding_size, 0);
-			//append that extra vector to our input
-		//	A.insert(A.end(), A_ext.begin(), A_ext.end());
+		//	// append that extra vector to our input
+		//	intensityHistogram.insert(intensityHistogram.end(), A_ext.begin(), A_ext.end());
 		//}
 
 		size_t input_elements = intensityHistogram.size();//number of input elements
@@ -114,32 +117,43 @@ int main(int argc, char **argv) {
 		cl::Buffer bufferIntensityHistogram(context, CL_MEM_READ_WRITE, input_size);
 		cl::Buffer bufferCumulativeHistogram(context, CL_MEM_READ_WRITE, input_size);
 		cl::Buffer bufferLookUpTable(context, CL_MEM_READ_WRITE, input_size);
+		// complex hist required buffers
+		cl::Buffer intermediateHistR(context, CL_MEM_WRITE_ONLY, input_size);
+		cl::Buffer intermediateHistG(context, CL_MEM_WRITE_ONLY, input_size);
+		cl::Buffer intermediateHistB(context, CL_MEM_WRITE_ONLY, input_size);
+
 
 		//Part 4 - device operations
 		
 		//4.1 copy array A to and initialise other arrays on device memory
 		queue.enqueueWriteBuffer(dev_image_input, CL_TRUE, 0, image_input.size(), &image_input.data()[0]);
-		queue.enqueueFillBuffer(bufferIntensityHistogram, 0, 0, input_size);//zero B buffer on device memory
+		queue.enqueueFillBuffer(bufferIntensityHistogram, 0, 0, input_size);//zero buffer on device memory
+		queue.enqueueFillBuffer(bufferCumulativeHistogram, 0, 0, input_size);//zero buffer on device memory
 		queue.enqueueFillBuffer(bufferLookUpTable, 0, 0, input_size);
 
 		//4.2 Setup and execute all kernels (i.e. device code)
-		cl::Kernel kernel_0 = cl::Kernel(program, "colour_histogram_kernel");
-		kernel_0.setArg(0, dev_image_input);
-		kernel_0.setArg(0, dev_image_input);
-		kernel_0.setArg(0, dev_image_input);
-		kernel_0.setArg(0, dev_image_input);
-		kernel_0.setArg(0, dev_image_input);
-		kernel_0.setArg(0, dev_image_input);
 
-		colour_histogram_kernel(global const uint * data, global uint * binResultR, global uint * binResultG, global uint * binResultB, int elements_awaiting_process, int total_pixels)
+		//colour_histogram_kernel(global const uint * data, global uint * binResultR, global uint * binResultG, global uint * binResultB, int elements_awaiting_process, int total_pixels)
 		
-				cl::Kernel kernel_1 = cl::Kernel(program, "histSimpleImplement");
+		cl::Kernel kernel_1 = cl::Kernel(program, "histSimpleImplement");
 		// Set input
 		kernel_1.setArg(0, dev_image_input);
 		// Set output
 		kernel_1.setArg(1, bufferIntensityHistogram);
-		// Set local memory size
-		//kernel_1.setArg(2, cl::Local(local_size*sizeof(mytype)));
+		//kernel_1.setArg(1, cl::Local(local_size));
+
+		//cl::Kernel kernel_1 = cl::Kernel(program, "hist_simple");
+		//// Set input
+		//kernel_1.setArg(0, dev_image_input);
+		//// Set output
+		//kernel_1.setArg(1, bufferIntensityHistogram);
+		//kernel_1.setArg(2, cl::Local(local_size));
+		//kernel_1.setArg(3, intermediateHistB);
+		//kernel_1.setArg(4, bufferIntensityHistogram);
+		//kernel_1.setArg(5, bufferIntensityHistogram);
+
+		//void colour_histogram_kernel(global const uint* data, global uint* binResultR, global uint* binResultG, global uint* binResultB, int elements_awaiting_process, int total_pixels) {
+
 
 		cl::Kernel kernel_2 = cl::Kernel(program, "scan_add");
 		// Set input
@@ -202,6 +216,8 @@ int main(int argc, char **argv) {
 		std::cout << "Preferred WG Size" << CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE << std::endl;
 		std::cout << "Actual WG Size" << availableComputeUnits << std::endl;
 		cout << endl;
+
+		std::cout << "Image Size = "<< elementsInput  << std::endl;
 		
 		CImg<unsigned char> output_image(output_image_buffer.data(), image_input.width(), image_input.height(), image_input.depth(), image_input.spectrum());
 		CImgDisplay disp_output(output_image, "output");

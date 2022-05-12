@@ -27,13 +27,39 @@ kernel void reduceAdd(global const int* A, global int* B, local int* scratch) {
 }
 
 kernel void histSimpleImplement(global const uchar* A, global int* H) {
-	int id = get_global_id(0);
-
+	
+	size_t globalID = get_global_id(0);
+	
 	//assumes that H has been initialised to 0
-	int bin_index = A[id];//take value as a bin index
+	int bin_index = A[globalID];//take value as a bin index
 
 	atomic_inc(&H[bin_index]);//serial operation, not very efficient!
 }
+
+//kernel void histLocalSimple(global const uchar* A, global int* H, local int* LH, int nr_bins) {
+//
+//	size_t globalID = get_global_id(0);
+//	size_t localID = get_local_id(0);
+//	size_t bin_index = A[id];
+//
+//	//assumes that H has been initialised to 0
+//	int bin_index = A[globalID];//take value as a bin index
+//
+//	atomic_inc(&H[bin_index]);//serial operation, not very efficient!
+//}
+//
+//kernel void histLocalPrototype(global const uchar* A, global int* H, local int* LH, int nr_bins) {
+//
+//	size_t globalID = get_global_id(0);
+//	size_t localID = get_local_id(0);
+//	size_t bin_index = A[id];
+//
+//	//assumes that H has been initialised to 0
+//	int bin_index = A[globalID];//take value as a bin index
+//
+//	atomic_inc(&H[bin_index]);//serial operation, not very efficient!
+//}
+
 
 // kernel to look at colour histograms
 # define BIN_SIZE 256
@@ -300,11 +326,11 @@ kernel void convolutionND(global const uchar* A, global uchar* B, constant float
 }
 
 kernel void LUT(global int* cumulativeHistogram, global int* lookupTable) {
-	int id = get_global_id(0);
-	lookupTable[id] = cumulativeHistogram[id] * (double)255 / cumulativeHistogram[255];
+	size_t globalID = get_global_id(0);
+	lookupTable[globalID] = cumulativeHistogram[globalID] * (double)255 / cumulativeHistogram[255];
 }
 
 kernel void backProjection(global uchar* A, global int* lookupTable, global uchar* B) {
-	int id = get_global_id(0);
-	B[id] = lookupTable[A[id]];
+	size_t globalID = get_global_id(0);
+	B[globalID] = lookupTable[A[globalID]];
 }
