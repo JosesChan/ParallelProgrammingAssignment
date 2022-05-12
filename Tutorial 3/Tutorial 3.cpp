@@ -1,4 +1,14 @@
 /*
+* Test.pgm file is read in and kernels are loaded from the cl file. Vectors with fixed bins are created for intensity, cumulative and look up table (LUT). 
+*Buffers made for required kernels. Queue an order to write in the buffer that stores the image and fill vector buffers with 0 to ensure neutral elements/accurate values.
+*Using a kernel to create partial histograms in local memory for histogram privatization, allows the program to categorize each pixel into bins faster than global memory,
+*atomic add is used to combine each histogram together. Attempts were made to create a reduce scan parallel pattern which would reduce multiple local memory groups and
+*use atomic addition to sum the data. Attempts were also made to implement a histogram that would use privatized histograms (colour_histogram_kernel) that would allow partial
+*histograms to be made in local memory and coalesced/combined into a single histogram, providing much faster processing times. Using the intensity histogram as input, a double
+*buffered Hillis-Steele inclusive scan was used. This scan keeps partial results allowing the cumulative sum of pixels to be counted. The double buffer prevents data from being
+*overwritten. The cumulative sum is then used in the LUT kernel to determine values for rescaling. This is then used in the back projection kernel, where the actual rescaling
+*occurs and the results are then stored in another buffer and outputted as an image along with the original image to show contrast between them.
+*
 */
 
 #include <iostream>
