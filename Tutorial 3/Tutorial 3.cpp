@@ -73,7 +73,7 @@ int main(int argc, char **argv) {
 		std::vector<mytype> lookUpTable(256);
 
 		
-		int availableComputeUnits = CL_DEVICE_MAX_COMPUTE_UNITS/4;
+		int availableComputeUnits = CL_DEVICE_MAX_COMPUTE_UNITS;
 		size_t local_size = availableComputeUnits;
 
 		/*size_t padding_size = intensityHistogram.size() % local_size;*/
@@ -117,6 +117,8 @@ int main(int argc, char **argv) {
 
 		//colour_histogram_kernel(global const uint * data, global uint * binResultR, global uint * binResultG, global uint * binResultB, int elements_awaiting_process, int total_pixels)
 		
+		
+		//cl::Kernel kernel_1 = cl::Kernel(program, "histLocalSimple");
 		cl::Kernel kernel_1 = cl::Kernel(program, "histSimpleImplement");
 		// Set input
 		kernel_1.setArg(0, dev_image_input);
@@ -177,7 +179,6 @@ int main(int argc, char **argv) {
 
 		//4.3 Results
 		std::cout << "Intensity Histogram Values : " << intensityHistogram << std::endl;
-		std::cout << "lol" << std::endl;
 		std::cout << "Histogram kernel execution time [ns]: " << timeIHist.getProfilingInfo<CL_PROFILING_COMMAND_END>() - timeIHist.getProfilingInfo<CL_PROFILING_COMMAND_START>() << std::endl;
 		std::cout << GetFullProfilingInfo(timeIHist, ProfilingResolution::PROF_US) << endl;
 		cout << endl;

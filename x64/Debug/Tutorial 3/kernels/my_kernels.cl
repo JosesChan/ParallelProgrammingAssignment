@@ -18,16 +18,122 @@ kernel void reduceAdd(global const int* A, global int* B, local int* scratch) {
 		barrier(CLK_LOCAL_MEM_FENCE);
 	}
 
-	//we add results from all local groups to the first element of the array
-	//serial operation! but works for any group size
-	//copy the cache to output array
-	if (!lid) {
-		atomic_add(&B[0],scratch[lid]);
+	////we add results from all local groups to the first element of the array
+	////serial operation! but works for any group size
+	////copy the cache to output array
+	//if (!lid) {
+	//	atomic_add(&B[0],scratch[lid]);
+	//}
+
+	B[id] = scratch[lid];
+}
+
+kernel void histSimpleImplement(global const uchar* A, global int* H) {
+	
+	size_t globalID = get_global_id(0);
+	
+	//assumes that H has been initialised to 0
+	int bin_index = A[globalID];//take value as a bin index
+
+	atomic_inc(&H[bin_index]);//serial operation, not very efficient!
+}
+
+//kernel void histLocalSimple(global const uchar* A, global int* H, local int* LH, int nr_bins) {
+//
+//	size_t globalID = get_global_id(0);
+//	size_t localID = get_local_id(0);
+//	size_t bin_index = A[id];
+//
+//	//assumes that H has been initialised to 0
+//	int bin_index = A[globalID];//take value as a bin index
+//
+//	atomic_inc(&H[bin_index]);//serial operation, not very efficient!
+//}
+//
+//kernel void histLocalPrototype(global const uchar* A, global int* H, local int* LH, int nr_bins) {
+//
+//	size_t globalID = get_global_id(0);
+//	size_t localID = get_local_id(0);
+//	size_t bin_index = A[id];
+//
+//	//assumes that H has been initialised to 0
+//	int bin_index = A[globalID];//take value as a bin index
+//
+//	atomic_inc(&H[bin_index]);//serial operation, not very efficient!
+//}
+
+kernel void histLocalSimple(global const uchar* A, global int* H, local int* LH, int nr_bins) {
+	size_t globalID = get_global_id(0);
+	size_t localID = get_local_id(0);
+	
+	//assumes that H has been initialised to 0
+	int bin_index = A[globalID];//take value as a bin index
+
+	// set bin to 0
+	if (localID < nr_bins) {
+		LH[localID] = 0;
+	}
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+	atomic_inc(&LH[bin_index]);
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+	// sync then combine privatised histograms
+	barrier(CLK_LOCAL_MEM_FENCE);
+	if(localID<nr_bins){
+		atomic_add(&H[localID], LH[localID]);
 	}
 }
 
-kernel void nr_bins() {
-//	int lid, glid, groupID, 
+
+// kernel to look at colour histograms
+# define BIN_SIZE 256
+void colour_histogram_kernel(global const uint* data, global uint* binResultR, global uint* binResultG, global uint* binResultB, int elements_awaiting_process, int total_pixels) {
+	__global uchar4* image_data = data;
+	__local int sharedArrayR[BIN_SIZE];
+	__local int sharedArrayG[BIN_SIZE];
+	__local int sharedArrayB[BIN_SIZE];
+	size_t localID = get_local_id(0);
+	size_t globalID = get_global_id(0);
+	size_t groupID = get_group_id(0);
+	size_t groupSize = get_local_size(0);
+	
+	// for coalesced access, smaller size then a naive implementation
+	// set only once by each work item
+	sharedArrayR[localID] = 0;
+	sharedArrayG[localID] = 0;
+	sharedArrayB[localID] = 0;
+	// synchronise setting to 0
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+	int groupOffset = groupID * groupSize * elements_awaiting_process;
+
+	// Calculate the number of elements required for last work group
+	if (groupID == (get_num_groups(0) - 1)) 
+		elements_awaiting_process = ((total_pixels - groupOffset) + groupSize - 1) / groupSize;
+	
+	// calculate thread histogram
+	for (int i = 0; i < elements_awaiting_process; ++i) {
+		int index = groupOffset + i * get_local_size(0) + localID;
+		// ensure boundary conditions (global mem not outside global mem buffer range)
+		if (index > total_pixels)
+			break;
+
+		// memory coalesced from global mem, combining multiple memory accesses into single transaction later
+		// using atomic inc to increment reading pixel values from global memory
+		uchar4 value = image_data[index];
+		atomic_inc(&sharedArrayR[value.x]);
+		atomic_inc(&sharedArrayR[value.y]);
+		atomic_inc(&sharedArrayR[value.w]);
+	}
+
+	// wait for all work items to process awaiting elements
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	// memory coalesced, written to global memory to combine
+	binResultR[groupID * BIN_SIZE + localID] = sharedArrayR[localID];
+	binResultG[groupID * BIN_SIZE + localID] = sharedArrayR[localID];
+	binResultB[groupID * BIN_SIZE + localID] = sharedArrayR[localID];
 }
 
 
@@ -47,6 +153,9 @@ kernel void hist_simple(global const int* A, global int* H, local int* scratch) 
 	barrier(CLK_LOCAL_MEM_FENCE);
 
 	atomic_inc(&H[bin_index]);//serial operation, not very efficient!
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+
 }
 
 //Hillis-Steele basic inclusive scan
@@ -150,22 +259,9 @@ kernel void scan_add_adjust(global int* A, global const int* B) {
 	A[id] += B[gid];
 }
 
-
 kernel void identity(global const uchar* A, global uchar* B) {
 	int id = get_global_id(0);
 	B[id] = A[id];
-}
-
-kernel void filter_r(global const uchar* A, global uchar* B) {
-	int id = get_global_id(0);
-	int image_size = get_global_size(0) / 3; //each image consists of 3 colour channels
-	int colour_channel = id / image_size; // 0 - red, 1 - green, 2 - blue
-
-	//this is just a copy operation, modify to filter out the individual colour channels
-	if (colour_channel == 0) {
-		B[id] = A[id];
-	}
-
 }
 
 //simple ND identity kernel
@@ -240,4 +336,14 @@ kernel void convolutionND(global const uchar* A, global uchar* B, constant float
 	}
 
 	B[id] = (uchar)result;
+}
+
+kernel void LUT(global int* cumulativeHistogram, global int* lookupTable) {
+	size_t globalID = get_global_id(0);
+	lookupTable[globalID] = cumulativeHistogram[globalID] * (double)255 / cumulativeHistogram[255];
+}
+
+kernel void backProjection(global uchar* A, global int* lookupTable, global uchar* B) {
+	size_t globalID = get_global_id(0);
+	B[globalID] = lookupTable[A[globalID]];
 }
